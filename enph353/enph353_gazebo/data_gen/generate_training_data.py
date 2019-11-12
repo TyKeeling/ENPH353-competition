@@ -52,3 +52,19 @@ import string
 
 from random import randint
 from PIL import Image, ImageFont, ImageDraw
+
+IMAGE_HEIGHT = 720
+IMAGE_WIDTH = 1280
+
+# light purple color RGB: 100 100 202   HSV: 240 50.5 79.2
+# dark purple color RGB: 0 0 103        HSV: 240 100 40.4
+def main(args):
+    # import backgrounds as a list, increment starting at 0 
+
+    for i in range(0,args[1]):
+
+
+        for plate in traning_plates:
+        
+if __name__ == '__main__':
+    main(sys.argv)
