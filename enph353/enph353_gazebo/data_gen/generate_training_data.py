@@ -42,19 +42,6 @@
 # are only 30% error from the normal rectangle image. Top left will be randomly placed. 
 # Corners may also be placed off screen, which would result in a "0" for "exists" col.
 
-
-
-
-<note>
-<to>Tove</to>
-<from>Jani</from>
-<heading>Reminder</heading>
-<body>Don't forget me this weekend!</body>
-</note>
-
-
-
-
 import cv2
 import csv
 import numpy as np

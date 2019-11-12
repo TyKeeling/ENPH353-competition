@@ -29,6 +29,8 @@ from PIL import Image, ImageFont, ImageDraw
 path = os.path.dirname(os.path.realpath(__file__)) + "/"
 texture_path = '../media/materials/textures/'
 
+print(path+texture_path)
+
 with open(path + "plates.csv", 'w') as plates_file:
     csvwriter = csv.writer(plates_file)
 
@@ -47,7 +49,7 @@ with open(path + "plates.csv", 'w') as plates_file:
         csvwriter.writerow([plate_alpha+plate_num])
 
         # Write plate to image
-        blank_plate = cv2.imread(path+'blank_plate.png')
+        blank_plate = cv2.imread(path+'../scripts/blank_plate.png')
 
         # To use monospaced font for the license plate we need to use the PIL
         # package.
@@ -67,7 +69,7 @@ with open(path + "plates.csv", 'w') as plates_file:
         # Create QR code image
         spot_name = "P" + str(i)
         qr = pyqrcode.create(spot_name+"_" + plate_alpha + plate_num)
-        qrname = path + "QRCode_" + str(i) + ".png"
+        qrname = path + "qr_code/QRCode_" + str(i) + ".png"
         qr.png(qrname, scale=20)
         QR_img = cv2.imread(qrname)
         QR_img = cv2.resize(QR_img, (600, 600), interpolation=cv2.INTER_AREA)
@@ -81,9 +83,5 @@ with open(path + "plates.csv", 'w') as plates_file:
 
         # Merge labelled or unlabelled images and save
         labelled = np.concatenate((QR_img, spot_w_plate), axis=0)
-        unlabelled = np.concatenate((255 * np.ones(shape=[600, 600, 3],
-                                    dtype=np.uint8), spot_w_plate), axis=0)
-        cv2.imwrite(os.path.join(path + texture_path + "labelled/",
-                                 "plate_" + str(i) + ".png"), labelled)
-        cv2.imwrite(os.path.join(path+texture_path+"unlabelled/",
-                                 "plate_" + str(i) + ".png"), unlabelled)
+        cv2.imwrite(os.path.join(path + "training_plates/",
+                        plate_alpha+ plate_num + "plate_" + str(i) + ".png"), labelled)
