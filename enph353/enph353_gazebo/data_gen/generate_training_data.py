@@ -138,44 +138,65 @@ def make_affine_transform(from_shape, to_shape,
 def main():
     # import backgrounds as a list, increment starting at 0 
     backgrounds = [cv2.imread(file) for file in glob.glob("./backgrounds/*.png")]
-    iback = randint(0,len(backgrounds))
-
-    plate_location = [file for file in glob.glob("./training_plates/*.png")]
+    iback = randint(0,len(backgrounds))-1
     plates = [cv2.imread(file) for file in glob.glob("./training_plates/*.png")]
-    platelabel = [string.split("/")[2] for string in plate_location]
+    
+    #plate_location = [file for file in glob.glob("./training_plates/*.png")
+    #platelabel = [string.split("/")[2] for string in plate_location]
 
 
     for i in range(0, LOOP):
-         for plate in plates[0:10]:
+         for plate in plates[0:20]:
 
-			bg = backgrounds[iback]
+            bg = backgrounds[iback]
 
-			plate = cv2.resize(plate, (plate.shape[0]/2, plate.shape[1])) # scaling down by 2
+            plate = cv2.resize(plate, (plate.shape[0]/2, plate.shape[1])) # scaling down by 2
+            plate = plate * random.uniform(0.5,0.9)
 
-			M, out_of_bounds, trans = make_affine_transform(
+
+            # light purple color RGB: 100 100 202   HSV: 240 50.5 79.2
+            # dark purple color RGB: 0 0 103        HSV: 240 100 40.4
+            prand = random.random()
+            purple = [240, int(40+70*prand), int(90-60*prand)] 
+
+            bordersize = 200
+            plate = cv2.copyMakeBorder(
+                plate,
+                top=0,
+                bottom=0,
+                left=bordersize,
+                right=bordersize,
+                borderType=cv2.BORDER_CONSTANT,
+                value=purple
+            )
+
+
+            plate = plate.astype(np.uint8)
+            platesize = np.ones(plate.shape, np.uint8)
+            platesize = platesize * 255 #white?
+
+            M, out_of_bounds, trans = make_affine_transform(
                     from_shape=(plate.shape[0], plate.shape[1]),
                     to_shape=(bg.shape[0], bg.shape[1]),
-					min_scale=0.6,
-					max_scale=0.875,
+					min_scale=0.2,
+					max_scale=0.4,
 					rotation_variation=1.0,
-					scale_variation=1.5,
+					scale_variation=3.5,
 					translation_variation=1.2)
 
-			center = (trans[0]+bg.shape[1]/2, trans[1]+bg.shape[0]/2)
-			print center
+            center = (trans[0]+bg.shape[1]/2, trans[1]+bg.shape[0]/2)
 
-			plate = cv2.warpAffine(plate, M, (bg.shape[1], bg.shape[0]))
-			plate = cv2.circle(plate, center, 1, (0,0,255), 20)          # this is the center, how to get corners?
+            plate = cv2.warpAffine(plate, M, (bg.shape[1], bg.shape[0]))
+            bluramount = random.randint(0,2)*2 + 1
+            plateblur = cv2.GaussianBlur(plate,(bluramount,bluramount),cv2.BORDER_DEFAULT) 
+            mask = cv2.warpAffine(platesize, M, (bg.shape[1], bg.shape[0]))
+            plate = cv2.circle(plate, center, 1, (0,0,255), 10)          # this is the center, how to get corners?
 
-			plate_bw = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
-			val, plate_mask = cv2.threshold(plate_bw,240,255,cv2.THRESH_BINARY)
-	
+            out = cv2.bitwise_and(bg, cv2.bitwise_not(mask)) + cv2.bitwise_and(plate, mask)
+            cv2.imshow("Image window", out)
+            cv2.waitKey(0)
 
-    		out = plate * plate_mask + bg * (1.0 - plate_mask)
-			cv2.imshow("Image window", plate)
-			cv2.waitKey(0)
-
-			iback = (iback + 1) % len(backgrounds)
+            iback = (iback + 1) % len(backgrounds)
 
 if __name__ == '__main__':
     main()
