@@ -32,6 +32,7 @@
 #     <xcoord>14</xcoord>
 #     <ycoord>24</ycoord>
 #   </bottomright>
+#   <squarer>10</squarer>
 # </image>
 # 
 # Where exists signifies the on page / off page constraint. 
@@ -54,11 +55,7 @@ import math
 
 from random import randint
 from PIL import Image, ImageFont, ImageDraw
-
-IMAGE_HEIGHT = 720
-IMAGE_WIDTH = 1280
-
-LOOP = 1
+import xml.etree.cElementTree as ET
 
 # Thank you to Matthew Earl https://github.com/matthewearl for the use of the below functions from 
 # https://github.com/matthewearl/deep-anpr/blob/master/gen.py , specifically the perspective transforms.
@@ -134,116 +131,115 @@ def make_affine_transform(from_shape, to_shape,
 
     return M, out_of_bounds, trans
 
-def distance(point1, point2):
-    return (point2[0] - point2[0])**2 + (point1[1] - point2[1])**2
+def make_coord_xml(coords):   # https://stackoverflow.com/questions/3605680/creating-a-simple-xml-file-using-python
+    # make sure labels follows the same ordering convention as the inputs
+    labels = ["topleft", "topright", "bottomleft", "bottomright"]
+    image = ET.Element("image")
 
+    # i = 0
+    # for label in labels:
+    #     a = ET.SubElement(image, label)
+    #     ET.SubElement(a, xcoord, name="blah").text = "some value1"
+
+    return ET.ElementTree(image)
+
+def createimages(backgrounds, plates):
+    outimage = []
+    coordobj = []
+
+    iback = randint(0,len(backgrounds))-1
+
+    for plate in plates: #to be removed
+        bg = backgrounds[iback]
+        plate = cv2.resize(plate, (plate.shape[0]/2, plate.shape[1])) # scaling down by 2
+        plate = plate * random.uniform(0.5,0.9) #shading
+        # light purple color RGB: 100 100 202   HSV: 240 50.5 79.2
+        # dark purple color RGB: 0 0 103        HSV: 240 100 40.4
+        prand = random.random()
+        purple = [240, int(40+70*prand), int(90-60*prand)] 
+
+        bordersize = 200
+        plate = cv2.copyMakeBorder(
+            plate,
+            top=0,
+            bottom=0,
+            left=bordersize,
+            right=bordersize,
+            borderType=cv2.BORDER_CONSTANT,
+            value=purple
+        )
+
+        plate = plate.astype(np.uint8)
+        platesize = np.ones(plate.shape, np.uint8)
+        platesize = platesize * 255 #white mask
+        cornerplate = np.zeros(plate.shape, np.uint8) # blank for adding corners.
+        cornersize = 25 # size of contour
+
+        (bottom, right, _) = cornerplate.shape
+        topleft = cv2.circle(cornerplate.copy(), (0+bordersize,    0),      1, (255,255,255), cornersize) 
+        topright = cv2.circle(cornerplate.copy(), (right-bordersize,0),      1, (255,255,255), cornersize)
+        bottomleft = cv2.circle(cornerplate.copy(), (0+bordersize,    bottom), 1, (255,255,255), cornersize) 
+        bottomright = cv2.circle(cornerplate.copy(), (right-bordersize,bottom), 1, (255,255,255), cornersize)
+        cornerimg = [topleft, topright, bottomleft, bottomright]
+
+        # Transforming made plates 
+        M, out_of_bounds, trans = make_affine_transform(
+                from_shape=(plate.shape[0], plate.shape[1]),
+                to_shape=(bg.shape[0], bg.shape[1]),
+                min_scale=0.3,
+                max_scale=0.4,
+                rotation_variation=1.0,
+                scale_variation=3.5,
+                translation_variation=1.2)
+        #center = (trans[0]+bg.shape[1]/2, trans[1]+bg.shape[0]/2)
+
+        # https://pythonprogramming.net/color-filter-python-opencv-tutorial/
+        plate_T = cv2.warpAffine(plate, M, (bg.shape[1], bg.shape[0]))
+        mask = cv2.warpAffine(platesize, M, (bg.shape[1], bg.shape[0]))
+        out = cv2.bitwise_and(bg, cv2.bitwise_not(mask)) + cv2.bitwise_and(plate_T, mask)
+
+        cornercont = [] # Should be list of only 4
+        for c in cornerimg:
+            c = cv2.warpAffine(c, M, (bg.shape[1], bg.shape[0]))
+            c = cv2.cvtColor(c, cv2.COLOR_RGB2GRAY)
+            _, contours, _ = cv2.findContours(c, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            cornercont.append(contours)
+
+        #Get coordinate points
+        coords = [(0,0)] * 4
+        squarer = 10
+
+        for i in range(len(cornercont)): #4
+            for c in cornercont[i]:
+                # compute the center of the contour
+                M = cv2.moments(c)
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+
+                cv2.rectangle(out, (cX-squarer,cY-squarer), (cX+squarer,cY+squarer), (0,255,0), 1 )
+                coords[i] = (cX,cY) 
+
+        outimage.append(out)
+        iback = (iback + 1) % len(backgrounds)
+    return outimage, coordobj 
 
 def main():
-    # import backgrounds as a list, increment starting at 0 
+
+
     backgrounds = [cv2.imread(file) for file in glob.glob("./backgrounds/*.png")]
-    iback = randint(0,len(backgrounds))-1
     plates = [cv2.imread(file) for file in glob.glob("./training_plates/*.png")]
-    
-    #plate_location = [file for file in glob.glob("./training_plates/*.png")
-    #platelabel = [string.split("/")[2] for string in plate_location]
+    plate_location = [file for file in glob.glob("./training_plates/*.png")]
+    platelabel = [string.split("/")[2] for string in plate_location]
+
+    plateloop = 3
+    for j in range(plateloop):
+        outimages, coords = createimages(backgrounds, plates)
+        
+        for i in range(len(outimages)):
+            cv2.imwrite("training_images/"+"{:03d}_".format(i+j)+platelabel[i % len(platelabel)],
+                outimages[i])
 
 
-    for i in range(0, LOOP):
-         for plate in plates[0:10]:
-            # setup
-            bg = backgrounds[iback]
-
-            plate = cv2.resize(plate, (plate.shape[0]/2, plate.shape[1])) # scaling down by 2
-            plate = plate * random.uniform(0.5,0.9)
-
-            # making plates, mask plate, and border plate: 
-            # light purple color RGB: 100 100 202   HSV: 240 50.5 79.2
-            # dark purple color RGB: 0 0 103        HSV: 240 100 40.4
-            prand = random.random()
-            purple = [240, int(40+70*prand), int(90-60*prand)] 
-
-            bordersize = 200
-            plate = cv2.copyMakeBorder(
-                plate,
-                top=0,
-                bottom=0,
-                left=bordersize,
-                right=bordersize,
-                borderType=cv2.BORDER_CONSTANT,
-                value=purple
-            )
-
-            plate = plate.astype(np.uint8)
-
-            platesize = np.ones(plate.shape, np.uint8)
-            platesize = platesize * 255 #white?
-
-            cornerplate = np.zeros(plate.shape, np.uint8) # want dots at all the corners. 
-            cornersize = 50
-
-            (bottom, right, _) = cornerplate.shape
-            
-            topleft = cv2.circle(cornerplate, (0+bordersize,    0),      1, (255,255,255), cornersize) 
-            topright = cv2.circle(cornerplate, (right-bordersize,0),      1, (255,255,255), cornersize)
-            bottomleft = cv2.circle(cornerplate, (0+bordersize,    bottom), 1, (255,255,255), cornersize) 
-            bottomright = cv2.circle(cornerplate, (right-bordersize,bottom), 1, (255,255,255), cornersize) 
-
-            corners = [topleft, topright, bottomleft, bottomright]
-
-            # Transforming made plates 
-            M, out_of_bounds, trans = make_affine_transform(
-                    from_shape=(plate.shape[0], plate.shape[1]),
-                    to_shape=(bg.shape[0], bg.shape[1]),
-					min_scale=0.3,
-					max_scale=0.4,
-					rotation_variation=1.0,
-					scale_variation=3.5,
-					translation_variation=1.2)
-            #center = (trans[0]+bg.shape[1]/2, trans[1]+bg.shape[0]/2)
-            #plate = cv2.circle(plate, center, 1, (0,0,255), 10)          # this is the center, how to get corners?
-            # https://pythonprogramming.net/color-filter-python-opencv-tutorial/
-
-            plate_T = cv2.warpAffine(plate, M, (bg.shape[1], bg.shape[0]))
-            mask = cv2.warpAffine(platesize, M, (bg.shape[1], bg.shape[0]))
-            out = cv2.bitwise_and(bg, cv2.bitwise_not(mask)) + cv2.bitwise_and(plate_T, mask)
-
-            cornercont = []
-            for c in corners:
-                c = cv2.warpAffine(topleft, M, (bg.shape[1], bg.shape[0]))
-                c = cv2.cvtColor(c, cv2.COLOR_RGB2GRAY)
-                _, contours, _ = cv2.findContours(c, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-                cornercont.append(contours)
-
-            # topleft = cv2.warpAffine(topleft, M, (bg.shape[1], bg.shape[0]))
-            # topright = cv2.warpAffine(topright, M, (bg.shape[1], bg.shape[0]))
-            # bottomleft = cv2.warpAffine(bottomleft, M, (bg.shape[1], bg.shape[0]))
-            # bottomright = cv2.warpAffine(bottomright, M, (bg.shape[1], bg.shape[0]))
-
-            # topleft = cv2.cvtColor(topleft, cv2.COLOR_RGB2GRAY)
-            # topright = cv2.cvtColor(topright, cv2.COLOR_RGB2GRAY)
-            # bottomleft = cv2.cvtColor(bottomleft, cv2.COLOR_RGB2GRAY)
-            # bottomleft = cv2.cvtColor(topleft, cv2.COLOR_RGB2GRAY)
-
-
-            #Get coordinate points
-            coords = [(0,0)] * 4
-            squarer = 10
-            for i in range(len(cornercont)):
-                for c in cornercont[i]:
-                    # compute the center of the contour
-                    M = cv2.moments(c)
-                    cX = int(M["m10"] / M["m00"])
-                    cY = int(M["m01"] / M["m00"])
-
-                    cv2.rectangle(out, (cX-squarer,cY-squarer), (cX+squarer,cY+squarer), (0,255,0), 1 )
-                    coords[i] = (cX,cY) 
-
-            print coords
-
-            cv2.imshow("Image window", out)
-            cv2.waitKey(0)
-            
-            iback = (iback + 1) % len(backgrounds)
 
 if __name__ == '__main__':
     main()
