@@ -56,6 +56,7 @@ import math
 from random import randint
 from PIL import Image, ImageFont, ImageDraw
 import xml.etree.cElementTree as ET
+from xml.dom import minidom
 
 # Thank you to Matthew Earl https://github.com/matthewearl for the use of the below functions from 
 # https://github.com/matthewearl/deep-anpr/blob/master/gen.py , specifically the perspective transforms.
@@ -131,25 +132,47 @@ def make_affine_transform(from_shape, to_shape,
 
     return M, out_of_bounds, trans
 
+def prettify(elem): # https://pymotw.com/2/xml/etree/ElementTree/create.html
+    rough_string = ET.ElementTree.tostring(elem, 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+    return reparsed.toprettyxml(indent="  ")
+
 def make_coord_xml(coords):   # https://stackoverflow.com/questions/3605680/creating-a-simple-xml-file-using-python
     # make sure labels follows the same ordering convention as the inputs
     labels = ["topleft", "topright", "bottomleft", "bottomright"]
     image = ET.Element("image")
 
-    # i = 0
-    # for label in labels:
-    #     a = ET.SubElement(image, label)
-    #     ET.SubElement(a, xcoord, name="blah").text = "some value1"
+    # child = SubElement(top, 'child')
+    # child.text = 'This child contains text.'
+    i = 0
+    for label in labels:
+        coord = coords[i]
 
+        a = ET.SubElement(image, label)
+        exists = ET.SubElement(a, "exists")
+        xcoord = ET.SubElement(a, "xcoord")
+        ycoord = ET.SubElement(a, "ycoord")
+
+        if (coord[0] == 0 and coord[1] == 0):
+            exists.text = "0"
+        else:
+            exists.text = "1"
+
+        xcoord.text = str(coord[0])
+        ycoord.text = str(coord[1])
+
+        i += 1 
+
+    # https://codeblogmoney.com/xml-pretty-print-using-python-with-examples/
     return ET.ElementTree(image)
 
 def createimages(backgrounds, plates):
     outimage = []
-    coordobj = []
+    coordtree = []
 
     iback = randint(0,len(backgrounds))-1
 
-    for plate in plates: #to be removed
+    for plate in plates:
         bg = backgrounds[iback]
         plate = cv2.resize(plate, (plate.shape[0]/2, plate.shape[1])) # scaling down by 2
         plate = plate * random.uniform(0.5,0.9) #shading
@@ -207,7 +230,7 @@ def createimages(backgrounds, plates):
 
         #Get coordinate points
         coords = [(0,0)] * 4
-        squarer = 10
+        #squarer = 10
 
         for i in range(len(cornercont)): #4
             for c in cornercont[i]:
@@ -216,30 +239,36 @@ def createimages(backgrounds, plates):
                 cX = int(M["m10"] / M["m00"])
                 cY = int(M["m01"] / M["m00"])
 
-                cv2.rectangle(out, (cX-squarer,cY-squarer), (cX+squarer,cY+squarer), (0,255,0), 1 )
+                #cv2.rectangle(out, (cX-squarer,cY-squarer), (cX+squarer,cY+squarer), (0,255,0), 1 )
                 coords[i] = (cX,cY) 
 
         outimage.append(out)
+        coordtree.append(make_coord_xml(coords))
         iback = (iback + 1) % len(backgrounds)
-    return outimage, coordobj 
+    return outimage, coordtree 
 
 def main():
-
+    # coords = [ (0,2), (0,0), (1,5), (10,20)]
+    # xml = make_coord_xml(coords)
+    # xml.write("output.xml")
 
     backgrounds = [cv2.imread(file) for file in glob.glob("./backgrounds/*.png")]
     plates = [cv2.imread(file) for file in glob.glob("./training_plates/*.png")]
     plate_location = [file for file in glob.glob("./training_plates/*.png")]
     platelabel = [string.split("/")[2] for string in plate_location]
 
-    plateloop = 3
+    plateloop = 30
     for j in range(plateloop):
         outimages, coords = createimages(backgrounds, plates)
-        
+
         for i in range(len(outimages)):
-            cv2.imwrite("training_images/"+"{:03d}_".format(i+j)+platelabel[i % len(platelabel)],
+            cv2.imwrite("training_images/"+"{:03d}_".format(i+j)+platelabel[i],
                 outimages[i])
 
-
+            coords[i].write("training_images/" +
+                "{:03d}_".format(i+j) + 
+                platelabel[i].split(".")[0] + 
+                ".xml")
 
 if __name__ == '__main__':
     main()
