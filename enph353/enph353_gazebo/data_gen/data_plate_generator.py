@@ -33,9 +33,7 @@ print(path+texture_path)
 
 with open(path + "plates.csv", 'w') as plates_file:
     csvwriter = csv.writer(plates_file)
-
-    for i in range(0, 16):
-
+    for i in range(0, 512): # number of plates to generate
         # Pick two random letters
         plate_alpha = ""
         for _ in range(0, 2):

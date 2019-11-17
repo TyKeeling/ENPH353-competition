@@ -236,8 +236,12 @@ def createimages(backgrounds, plates):
             for c in cornercont[i]:
                 # compute the center of the contour
                 M = cv2.moments(c)
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
+                if M["m00"] != 0: # https://stackoverflow.com/questions/35247211/zerodivisionerror-python
+                    cX = int(M["m10"] / M["m00"])
+                    cY = int(M["m01"] / M["m00"])
+                else:
+                    # set values as what you need in the situation
+                    cX, cY = 0, 0
 
                 #cv2.rectangle(out, (cX-squarer,cY-squarer), (cX+squarer,cY+squarer), (0,255,0), 1 )
                 coords[i] = (cX,cY) 
@@ -257,16 +261,16 @@ def main():
     plate_location = [file for file in glob.glob("./training_plates/*.png")]
     platelabel = [string.split("/")[2] for string in plate_location]
 
-    plateloop = 30
+    plateloop = 2
     for j in range(plateloop):
         outimages, coords = createimages(backgrounds, plates)
 
         for i in range(len(outimages)):
-            cv2.imwrite("training_images/"+"{:03d}_".format(i+j)+platelabel[i],
+            cv2.imwrite("training_images/"+"{:04d}_".format(i+j)+platelabel[i],
                 outimages[i])
 
             coords[i].write("training_images/" +
-                "{:03d}_".format(i+j) + 
+                "{:04d}_".format(i+j) + 
                 platelabel[i].split(".")[0] + 
                 ".xml")
 
