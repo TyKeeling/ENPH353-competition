@@ -3,3 +3,6 @@ enph353/enph353_gazebo/media/materials/textures/unlabelled/*
 enph353/enph353_gazebo/nodes/*.csv
 enph353/enph353_gazebo/scripts/QRCode_*.png
 enph353/enph353_gazebo/scripts/plates.csv
+enph353/enph353_gazebo/.vscode/
+enph353/enph353_gazebo/data_gen/plates.csv
+enph353/enph353_gazebo/data_gen/.ipynb_checkpoints/
