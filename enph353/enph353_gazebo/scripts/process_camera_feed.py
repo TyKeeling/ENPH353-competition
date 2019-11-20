@@ -20,11 +20,10 @@ low_threshold = 75
 high_threshold = 110
 bwThresh = 100
 
-
 class image_converter:
 
     def __init__(self):
-        self.image_out = rospy.Publisher("/R1/image_out", Image, queue_size=10)
+        self.image_out = rospy.Publisher("/R1/image_out", Image, queue_size=1)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(
             "/R1/pi_camera/image_raw", Image, self.callback)
@@ -72,7 +71,8 @@ def colormask_contour(img):
 
     _, contours, h = cv2.findContours(opening, 1, 2)
 
-    for cnt in contours:
+    corners = ((0,0), (0,0))
+    for cnt in contours: # hopefully only one rectangle is being output eek will fix later
         #cv2.drawContours(img,[cnt],0,(0,0,255),-1)
         approx = cv2.approxPolyDP(cnt,0.1*cv2.arcLength(cnt,True),True)
         if len(approx)==4:
@@ -80,6 +80,7 @@ def colormask_contour(img):
             h = int(h*1.37)
             if w > 80 and h > 100 and notEdges(x,y,w,h):
                 cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+            corners = ((x,y), (x+w,y+h))
 
     return img
 
